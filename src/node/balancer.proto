@@ -1,0 +1,37 @@
+message MetricSetup {
+    required int32 id = 1;
+    required int32 metricId = 2;
+    required string entityTypes = 3;
+}
+
+message CalculateMetricCommand {
+    required int32 accountId = 1;
+    required MetricSetup metricSetup = 2;
+    repeated int32 targetIds = 3 [packed = true];
+    required string eventId = 4;
+    required string commandId = 5;
+}
+
+message ComputationCancelledEvent {
+    required int32 accountId = 1;
+    required int32 metricSetupId = 2;
+    repeated int32 targetIds = 3 [packed = true];
+    required string eventId = 4;
+}
+
+message RequestQueuesCommand {
+}
+
+message QueuesCollection {
+    repeated string queueNames = 1;
+}
+
+message QueueChangedEvent {
+    enum Modification {
+        NONE = 0;
+        ADDED = 1;
+        DELETED = 2;
+    }
+    required string queueName = 1;
+    required Modification modification = 2 [default = NONE];
+}
