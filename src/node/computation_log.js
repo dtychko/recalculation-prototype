@@ -11,7 +11,7 @@ db.on('error', err => {
 app.use(bodyParser.json());
 
 app.post('/update', (req, res) => {
-    console.log(` [x] POST '/update'. Payload=${JSON.stringify(req.body)}`);
+    console.log(` [x] Received POST '/update'. Payload=${JSON.stringify(req.body)}`);
 
     var eventId = req.body.eventId;
     var accountId = req.body.accountId;
@@ -23,21 +23,28 @@ app.post('/update', (req, res) => {
         return;
     }
 
+    update(eventId, accountId, metricSetupId, targetIds)
+        .then(result => {
+            res.json(result);
+            console.log(` [x] Processed POST '/update'. Response=${JSON.stringify(result).substring(0, 80)}...`);
+        })
+        .catch(err => {
+            console.error(' [Error]', err);
+            res.status(500).send('Internal Server Error');
+        });
+});
+
+function update(eventId, accountId, metricSetupId, targetIds) {
     var generateKey = makeKeyGenerator(accountId, metricSetupId);
 
     var multi = db.multi();
     var getPromise = getLastEventIds(multi, targetIds, generateKey);
     var setPromise = setEventId(multi, targetIds, generateKey, eventId);
 
-    execMulti(multi)
+    return execMulti(multi)
         .then(() => Promise.all([getPromise, setPromise]))
-        .then(([lastEvents]) => {
-            res.json(lastEvents);
-        }, err => {
-            console.error(' [Error]', err);
-            res.status(500).send('Internal Server Error');
-        });
-});
+        .then(([lastEvents]) => lastEvents);
+}
 
 function getLastEventIds(client, targetIds, generateKey) {
     return new Promise((resolve, reject) => {

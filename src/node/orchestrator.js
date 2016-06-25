@@ -19,130 +19,59 @@ var METRIC_SETUP_QUEUE = 'metric_setup_events';
 const QUEUE_DISCOVERY_QUEUE = 'queue_discovery_queue';
 const QUEUE_CHANGED_EXCHANGE = 'queue_changed_queue';
 var CANCELLATION_QUEUE = 'cancellation_queue';
-var QUEUE_PREFETCH = 1;
+var QUEUE_PREFETCH = 5;
 
-amqp.connect(RABBIT_SERVER_URL)
-    .then(conn => conn.createChannel())
-    .then(ch => {
-        console.log(' [1] Created channel.');
-        return ch;
-    })
-    .then(ch =>
-        Promise.all([
-            ch.assertQueue(METRIC_SETUP_QUEUE, {durable: false}),
-            ch.assertQueue(QUEUE_DISCOVERY_QUEUE, {durable: false}),
-            ch.assertExchange(QUEUE_CHANGED_EXCHANGE, 'fanout', {durable: false}),
-            ch.prefetch(QUEUE_PREFETCH)
-        ]).then(() => {
-            console.log(' [2] Asserted queues/exchanges.');
-        }).then(() =>
-            Promise.all([
-                ch.consume(QUEUE_DISCOVERY_QUEUE, withLogging(queueDiscoveryMessageConsumer(ch))),
-                ch.consume(METRIC_SETUP_QUEUE, withLogging(metricSetupQueueConsumer(ch)))
-            ]).then(() => {
-                console.log(' [3] Initialized consumers.');
-            })
-        ))
+createChannel()
+    .then(prepareChannel)
+    .then(startListening)
     .then(() => {
-        console.log(' [x] App started')
+        console.log(' [x] App started');
+    })
+    .catch(err => {
+        console.error(err);
     });
 
-function metricSetupQueueConsumer(ch) {
-    return msg => {
-        const event = MetricSetupChangedEvent.decode(msg.content);
-
-        console.log(' [x] Received MetricSetupChangedEvent ', JSON.stringify(event));
-
-        const eventId = Guid.raw();
-        const accountId = event.accountId;
-        const metricSetup = event.metricSetup;
-        const queueName = getQueueName(accountId);
-
-        accountStorage.addIfNotExists(accountId)
-            .then(added => {
-                if (added) {
-                    return ch.assertQueue(queueName, {durable: false})
-                        .then(() => {
-                            var addQueueMessage = new QueueChangedEvent({
-                                queueName: queueName,
-                                modification: 1
-                            });
-                            ch.publish(QUEUE_CHANGED_EXCHANGE, '', addQueueMessage.toBuffer());
-                        });
-                }
-            })
-            .then(() => getTargets(accountId, metricSetup))
-            .then(targetIds =>
-                updateComputationLog(eventId, accountId, metricSetup.id, targetIds)
-                    .then(cancellationMap => sendMessagesToCancellationQueue(accountId, metricSetup, ch, cancellationMap))
-                    .then(() => sendCalculationBatches(ch, queueName, eventId, accountId, metricSetup, targetIds))
-            )
-            .then(() => {
-                ch.ack(msg);
-                console.log(' [x] Processed MetricSetupChangedEvent.');
-            }, err => {
-                console.error(err);
-            });
-    };
-}
-
-function sendCalculationBatches(ch, queueName, eventId, accountId, metricSetup, targetIds) {
-    return new Promise(res => {
-        var batches = createBatches(targetIds);
-
-        for (let i = 0; i < batches.length; i++) {
-            var command = new CalculateMetricCommand({
-                commandId: Guid.raw(),
-                eventId: eventId,
-                accountId: accountId,
-                metricSetup: metricSetup,
-                targetIds: targetIds
-            });
-
-            var responseFlag = ch.sendToQueue(queueName, command.toBuffer());
-            command.targetIds = [];
-            console.log(' [x] Sent ', JSON.stringify(command));
-        }
-        res();
-    });
-}
-
-function sendMessagesToCancellationQueue(accountId, metricSetup, ch, cancellationMap) {
-    return new Promise(res => {
-        var cancellationGroups = _.reduce(cancellationMap, (acc, eId, tId) => {
-            acc[eId] = acc[eId] || [];
-            acc[eId].push(tId);
-            return acc;
-        }, {});
-
-        _.each(cancellationGroups, (tIds, eId) => {
-            var computationCancelledEvent = new ComputationCancelledEvent({
-                accountId: accountId,
-                metricSetupId: metricSetup.id,
-                targetIds: _.map(tIds, x => parseInt(x, 10)),
-                eventId: eId
-            });
-
-            var responseFlag = ch.sendToQueue(CANCELLATION_QUEUE, computationCancelledEvent.toBuffer());
-            console.log(` [x] Sent cancellation command for event ${eId}`);
+function createChannel() {
+    return amqp.connect(RABBIT_SERVER_URL)
+        .then(conn => conn.createChannel())
+        .then(ch => {
+            console.log(' [1] Connected and created channel.');
+            return ch;
         });
+}
 
-        console.log(' [x] Sent all cancellation commands.');
+function prepareChannel(ch) {
+    return Promise.all([
+        ch.assertQueue(METRIC_SETUP_QUEUE, {durable: false}),
+        ch.assertQueue(QUEUE_DISCOVERY_QUEUE, {durable: false}),
+        ch.assertExchange(QUEUE_CHANGED_EXCHANGE, 'fanout', {durable: false}),
+        ch.prefetch(QUEUE_PREFETCH)
+    ]).then(() => {
+        console.log(' [2] Asserted queues/exchanges.');
+        return ch;
+    });
+}
 
-        res();
+function startListening(ch) {
+    return Promise.all([
+        ch.consume(QUEUE_DISCOVERY_QUEUE, logErrors(queueDiscoveryMessageConsumer(ch))),
+        ch.consume(METRIC_SETUP_QUEUE, logErrors(metricSetupQueueConsumer(ch)))
+    ]).then(() => {
+        console.log(' [3] Initialized consumers.');
+        return ch;
     });
 }
 
 function queueDiscoveryMessageConsumer(ch) {
     return msg => {
         console.log(` [x] Received RequestQueuesCommand.`);
-        var content = msg.content;
-        var command = RequestQueuesCommand.decode(content);
+
+        RequestQueuesCommand.decode(msg.content);
 
         accountStorage.getAccounts()
             .then(accountIds => {
                 var queueCollection = new QueuesCollection({
-                    queueNames: _.map(accountIds, item => getQueueName(item))
+                    queueNames: accountIds.map(x => getQueueName(x))
                 });
 
                 //TODO: investigate processing of false response from sendToQueue
@@ -153,13 +82,68 @@ function queueDiscoveryMessageConsumer(ch) {
                 );
 
                 ch.ack(msg);
+
                 console.log(` [x] Processed RequestQueuesCommand.`);
+            })
+            .catch(err => {
+                ch.noAck(msg);
+
+                console.error(' [Error]', err);
             });
     };
 }
 
-function getQueueName(accountId) {
-    return `calc_requests_for_account_${accountId}`;
+function metricSetupQueueConsumer(ch) {
+    return msg => {
+        console.log(' [x] Received MetricSetupChangedEvent.');
+
+        const event = MetricSetupChangedEvent.decode(msg.content);
+
+        console.log(' [x]', JSON.stringify(event));
+
+        const eventId = Guid.raw();
+        const accountId = event.accountId;
+        const metricSetup = event.metricSetup;
+        const queueName = getQueueName(accountId);
+
+        accountStorage.addIfNotExists(accountId)
+            .then(notifyIfQueueAdded(ch, queueName))
+            .then(() => getTargets(accountId, metricSetup))
+            .then(targetIds => processTargetIds(ch, queueName, eventId, accountId, metricSetup, targetIds))
+            .then(() => {
+                ch.ack(msg);
+
+                console.log(' [x] Processed MetricSetupChangedEvent.');
+            })
+            .catch(err => {
+                ch.nack(msg);
+
+                console.error(' [Error]', err);
+            });
+    };
+}
+
+function notifyIfQueueAdded(ch, queueName) {
+    return added => {
+        if (!added) {
+            return;
+        }
+
+        return ch.assertQueue(queueName, {durable: false})
+            .then(() => {
+                var addQueueMessage = new QueueChangedEvent({
+                    queueName: queueName,
+                    modification: 1
+                });
+                ch.publish(QUEUE_CHANGED_EXCHANGE, '', addQueueMessage.toBuffer());
+            });
+    };
+}
+
+function processTargetIds(ch, queueName, eventId, accountId, metricSetup, targetIds) {
+    return updateComputationLog(eventId, accountId, metricSetup.id, targetIds)
+        .then(cancellationMap => sendMessagesToCancellationQueue(ch, accountId, metricSetup.id, cancellationMap))
+        .then(() => sendCalculationBatches(ch, queueName, eventId, accountId, metricSetup, targetIds));
 }
 
 function updateComputationLog(eventId, accountId, metricSetupId, targetIds) {
@@ -176,17 +160,67 @@ function updateComputationLog(eventId, accountId, metricSetupId, targetIds) {
         })
     }).then(res => {
         if (!res.ok) {
-            console.log(res.status, res.statusText);
-            return Promise.reject('Error during updating computation log');
+            return Promise.reject(
+                `Error during updating computation log. Status=${res.status}, StatusText=${res.statusText}`);
         }
 
         return res.json();
-    }, err => {
-        console.log(` [-] Update computation log error '${err}'`);
     }).then(json => {
         console.log(` [x] Received cancellation map.`, JSON.stringify(json).substring(0, 80) + '...');
         return json;
     });
+}
+
+function sendMessagesToCancellationQueue(ch, accountId, metricSetupId, cancellationMap) {
+    return new Promise(res => {
+        var groups = cancellationMap.reduce((acc, item) => {
+            acc[item.eventId] = acc[item.eventId] || [];
+            acc[item.eventId].push(item.targetId);
+            return acc;
+        }, {});
+
+        _.each(groups, (targetIds, eventId) => {
+            var computationCancelledEvent = new ComputationCancelledEvent({
+                accountId,
+                metricSetupId,
+                targetIds,
+                eventId
+            });
+
+            var responseFlag = ch.sendToQueue(CANCELLATION_QUEUE, computationCancelledEvent.toBuffer());
+        });
+
+        console.log(' [x] Sent all cancellation commands.');
+
+        res();
+    });
+}
+
+function sendCalculationBatches(ch, queueName, eventId, accountId, metricSetup, targetIds) {
+    return new Promise(res => {
+        var batches = createBatches(targetIds);
+
+        for (let i = 0; i < batches.length; i++) {
+            var commandId = Guid.raw();
+            var command = new CalculateMetricCommand({
+                commandId,
+                eventId,
+                accountId,
+                metricSetup,
+                targetIds
+            });
+
+            var responseFlag = ch.sendToQueue(queueName, command.toBuffer());
+
+            console.log(` [x] Sent CalculateMetricCommand#${commandId}`);
+        }
+
+        res();
+    });
+}
+
+function getQueueName(accountId) {
+    return `calc_requests_for_account_${accountId}`;
 }
 
 var entityCountMap = {
@@ -196,15 +230,14 @@ var entityCountMap = {
 };
 
 function getTargets(accountId, metricSetup) {
-    return new Promise((resolve, reject) => {
+    return new Promise(resolve => {
         setTimeout(() => {
             var entityTypes = metricSetup.entityTypes.toLowerCase().replace(' ', '').split(',');
-            var count = _.reduce(entityTypes, (acc, type) => {
+            var count = entityTypes.reduce((acc, type) => {
                 return acc + (entityCountMap[type] || 0);
             }, 0);
-            var result = _.range(0, count);
 
-            resolve(result)
+            resolve(_.range(0, count))
         }, 1000);
     });
 }
@@ -229,12 +262,12 @@ function createBatches(targetIds) {
     return result;
 }
 
-function withLogging(fn) {
+function logErrors(fn) {
     return (...args) => {
         try {
             fn(...args);
-        } catch (e) {
-            console.error(e);
+        } catch (err) {
+            console.error(err);
         }
     };
 }

@@ -4,11 +4,11 @@
 		items: [
 			{
 				id: 1,
-				metricId: 2,
+				metricId: 1,
 				entityTypes: 'UserStory, Bug'
 			}, {
 				id: 2,
-				metricId: 4,
+				metricId: 2,
 				entityTypes: 'Bug'
 			}
 		]
@@ -17,7 +17,7 @@
 		items: [
 			{
 				id: 1,
-				metricId: 5,
+				metricId: 3,
 				entityTypes: 'Bug'
 			}
 		]
@@ -26,7 +26,7 @@
 		items: [
 			{
 				id: 1,
-				metricId: 6,
+				metricId: 4,
 				entityTypes: 'UserStory, Bug'
 			}
 		]
@@ -35,7 +35,7 @@
 		items: [
 			{
 				id: 1,
-				metricId: 7,
+				metricId: 5,
 				entityTypes: 'UserStory'
 			}
 		]
