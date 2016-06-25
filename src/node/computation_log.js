@@ -4,14 +4,14 @@ var redis = require('redis');
 var app = express();
 
 var db = redis.createClient('redis://192.168.99.100:6379/1');
-db.on('error', (err) => {
-    console.log(` [-] Redis error '${err}'`);
+db.on('error', err => {
+    console.error(' [Error] Redis error', err);
 });
 
 app.use(bodyParser.json());
 
 app.post('/update', (req, res) => {
-    console.log(` [x] Received POST '/update'. Payload=${JSON.stringify(req.body)}`);
+    console.log(` [x] POST '/update'. Payload=${JSON.stringify(req.body)}`);
 
     var eventId = req.body.eventId;
     var accountId = req.body.accountId;
@@ -24,106 +24,75 @@ app.post('/update', (req, res) => {
     }
 
     var generateKey = makeKeyGenerator(accountId, metricSetupId);
-    var promise = Promise.resolve({});
 
-    for (var i = 0; i < targetIds.length; i++) {
-        let targetId = targetIds[i];
-        let key = generateKey(targetId);
+    var multi = db.multi();
+    var getPromise = getLastEventIds(multi, targetIds, generateKey);
+    var setPromise = setEventId(multi, targetIds, generateKey, eventId);
 
-        promise = promise.then(map =>
-            new Promise((res, rej) => {
-                db.get(key, (err, eventId) => {
-                    if (err) {
-                        console.log(` [-] Redis get error '${err}'`);
-                        rej();
-                    }
-
-                    if (eventId) {
-                        map[targetId] = eventId;
-                    }
-
-                    res(map);
-                });
-            })
-        );
-    }
-
-    promise.then(map => {
-        for (var i = 0; i < targetIds.length; i++) {
-            let key = generateKey(targetIds[i]);
-
-            db.set(key, eventId, err => {
-                if (err) {
-                    console.log(` [-] Redis set error '${err}'`);
-                }
-            });
-        }
-
-        res.json(map);
-        console.log(` [x] Updated eventId '${eventId}'`);
-    }, () => {
-        res.status(500).send('Internal Server Error');
-        console.log(` [-] Error during updating eventId '${eventId}'`);
-    });
+    execMulti(multi)
+        .then(() => Promise.all([getPromise, setPromise]))
+        .then(([lastEvents]) => {
+            res.json(lastEvents);
+        }, err => {
+            console.error(' [Error]', err);
+            res.status(500).send('Internal Server Error');
+        });
 });
 
+function getLastEventIds(client, targetIds, generateKey) {
+    return new Promise((resolve, reject) => {
+        const keys = targetIds.map(x => generateKey(x));
+
+        client.mget(keys, (err, eventIds) => {
+            if (err) {
+                reject(err);
+                return;
+            }
+
+            var result = targetIds
+                .map((targetId, index) => ({
+                    targetId,
+                    eventId: eventIds[index]
+                }))
+                .filter(pair => pair.eventId);
+
+            resolve(result);
+        })
+    });
+}
+
+function setEventId(client, targetIds, generateKey, eventId) {
+    return new Promise((resolve, reject) => {
+        var args = targetIds
+            .reduce((acc, targetId) => acc.concat(generateKey(targetId), eventId), []);
+
+        client.mset(args, (err, replies) => {
+            if (err) {
+                reject(err);
+                return;
+            }
+
+            resolve();
+        })
+    });
+}
+
+function execMulti(multi) {
+    return new Promise((resolve, reject) => {
+        multi.exec(err => {
+            if (err) {
+                reject(err);
+                return;
+            }
+
+            resolve();
+        });
+    });
+}
 
 function makeKeyGenerator(accountId, metricSetupId) {
     return targetId => `${accountId}_${metricSetupId}_${targetId}`;
 }
-// app.get('/getUid', (req, res) => {
-//     var accountId = req.query.accountId;
-//     var metricSetupId = req.query.metricSetupId;
-//     var targetId = req.query.targetId;
-//
-//     console.log(` [x] Received GET '/getUid'. AccountId=${accountId}, MSId=${metricSetupId}, TargetId=${targetId}`);
-//    
-//     if (!accountId || !metricSetupId || !targetId) {
-//         res.status(400).send('Bad Request');
-//         return;
-//     }
-//
-//     var key = `${accountId}_${metricSetupId}_${targetId}`;
-//
-//     db.get(key, (err, uid) => {
-//         if (err) {
-//             console.log(` [-] Redis get error '${err}'`);
-//             return;
-//         }
-//
-//         var result = uid || null;
-//         res.end(result);
-//
-//         console.log(` [x] Sent ${result}`);
-//     });
-// });
-//
-// app.post('/updateUid', (req, res) => {
-//     console.log(` [x] Received POST '/updateUid'. Payload=${JSON.stringify(req.body)}`);
-//
-//     var uid = req.body.uid;
-//     var accountId = req.body.accountId;
-//     var metricSetupId = req.body.metricSetupId;
-//     var targetIds = req.body.targetIds;
-//
-//     if (!uid || !accountId || !metricSetupId || !targetIds || !targetIds.length) {
-//         res.status(400).send('Bad Request');
-//         return;
-//     }
-//
-//     for (var i = 0; i < targetIds.length; i++) {
-//         var key = `${accountId}_${metricSetupId}_${targetIds[i]}`;
-//         db.set(key, uid, (err) => {
-//             if (err) {
-//                 console.log(` [-] Redis set error '${err}'`);
-//             }
-//         });
-//
-//         console.log(` [x] Added/Updated uid '${uid}' for key '${key}'`);
-//     }
-//
-//     res.end();
-// });
 
 app.listen(8081, () => {
     console.log(` [x] App started`);
