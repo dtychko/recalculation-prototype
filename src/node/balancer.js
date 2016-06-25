@@ -19,37 +19,26 @@ const SHORT_QUEUE = 'short_queue';
 const CHANNEL_PREFETCH = 100;
 const SHORT_QUEUE_DNO = 50;
 
-connect()
-    .then(createChannel)
+createChannel()
     .then(subscribeToQueueChangedExchange)
     .then(discoverQueues)
     .then(initConsumers)
     .then(initShortQueue)
     .then(() => {
         console.log(' [x] App Started');
-    }, err => {
+    })
+    .catch(err => {
         console.error(err);
     });
 
-function connect() {
+function createChannel() {
     return amqp.connect(RABBIT_SERVER_URL)
-        .then(conn => {
-            console.log(' [1] Connected to server');
-            return conn;
-        }, err => {
-            console.error(' [1]', err);
-        })
-}
-
-function createChannel(conn) {
-    return conn.createChannel()
+        .then(conn => conn.createChannel())
         .then(ch => ch.prefetch(CHANNEL_PREFETCH).then(() => ch))
         .then(ch => {
-            console.log(' [2] Created channel');
+            console.log(' [1] Connected and created channel.');
             return ch;
-        }, err => {
-            console.error(' [2]', err);
-        })
+        });
 }
 
 function subscribeToQueueChangedExchange(ch) {
@@ -59,8 +48,10 @@ function subscribeToQueueChangedExchange(ch) {
         ])
         .then(([ex, q]) => ch.bindQueue(q.queue, ex.exchange, '').then(() => q))
         .then(q => ch.consume(q.queue, msg => {
-            console.log(` [x] ${QUEUE_CHANGED_EXCHANGE} >> Received queue changed message.`);
+            console.log(` [x] Received QueueChangedEvent.`);
+
             const event = QueueChangedEvent.decode(msg.content);
+
             if (event.modification === 1) {
                 queueRegistry.add(event.queueName);
             } else if (event.modification === 2) {
