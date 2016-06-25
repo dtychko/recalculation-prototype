@@ -1,0 +1,43 @@
+[
+	{
+		accountId: 1,
+		items: [
+			{
+				id: 1,
+				metricId: 2,
+				entityTypes: 'UserStory, Bug'
+			}, {
+				id: 2,
+				metricId: 4,
+				entityTypes: 'Bug'
+			}
+		]
+	}, {
+		accountId: 2,
+		items: [
+			{
+				id: 1,
+				metricId: 5,
+				entityTypes: 'Bug'
+			}
+		]
+	}, {
+		accountId: 3,
+		items: [
+			{
+				id: 1,
+				metricId: 6,
+				entityTypes: 'UserStory, Bug'
+			}
+		]
+	}, {
+		accountId: 4,
+		items: [
+			{
+				id: 1,
+				metricId: 7,
+				entityTypes: 'UserStory'
+			}
+		]
+	}
+]
