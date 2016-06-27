@@ -1,0 +1,18 @@
+message MetricSetup {
+    required int32 id = 1;
+    required int32 metricId = 2;
+    required string entityTypes = 3;
+}
+
+message MetricSetupChangedEvent {
+    enum Modification {
+        NONE = 0;
+        ADDED = 1;
+        UPDATED = 2;
+        DELETED = 3;
+    }
+
+    required MetricSetup metricSetup = 1;
+    required Modification modification = 2 [default = NONE];
+    required int32 accountId = 3;
+}
