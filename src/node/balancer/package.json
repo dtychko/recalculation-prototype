@@ -1,0 +1,17 @@
+{
+  "name": "balancer",
+  "version": "1.0.0",
+  "description": "",
+  "main": "balancer.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "amqplib": "^0.4.2",
+    "guid": "0.0.12",
+    "protobufjs": "^5.0.1",
+    "underscore": "^1.8.3"
+  }
+}

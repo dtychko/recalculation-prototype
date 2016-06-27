@@ -1,21 +1,16 @@
 {
-  "name": "node",
+  "name": "computation_log",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "computation_log.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "amqplib": "^0.4.2",
     "body-parser": "^1.15.2",
     "express": "^4.14.0",
-    "guid": "0.0.12",
-    "node-fetch": "^1.5.3",
-    "protobufjs": "^5.0.1",
-    "redis": "^2.6.2",
-    "underscore": "^1.8.3"
+    "redis": "^2.6.2"
   }
 }
