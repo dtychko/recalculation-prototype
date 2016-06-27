@@ -194,7 +194,10 @@ function sendMessagesToCancellationQueue(ch, accountId, metricSetupId, cancellat
             console.log(` [${now()}] Sent ComputationCancelledEvent#${eventId}`);
         });
 
-        res();
+        setTimeout(() => {
+            res()
+        }, 500);
+        //res();
     });
 }
 
@@ -214,7 +217,7 @@ function sendCalculationBatches(ch, queueName, eventId, accountId, metricSetup, 
 
             var responseFlag = ch.sendToQueue(queueName, command.toBuffer());
 
-            console.log(` [${now()}] Sent CalculateMetricCommand#${commandId}`);
+            console.log(` [${now()}] Sent CalculateMetricCommand#${commandId}. EventId=${eventId}`);
         }
 
         res();

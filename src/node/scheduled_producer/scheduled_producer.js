@@ -20,9 +20,26 @@ const executeOnQuit = [];
 
 createChannel()
     .then(initQueue)
-    .then(initFileProcessor)
     .then(initConsoleInput);
 
+function createChannel() {
+    return amqp.connect(RABBIT_SERVER_URL)
+        .then(conn => conn.createChannel()
+            .then(ch => {
+                executeOnQuit.push(() => {
+                    ch.close();
+                    conn.close();
+                    console.log(" [x] all connections closed.")
+                });
+                return ch;
+            })
+        );
+}
+
+function initQueue(ch) {
+    return ch.assertQueue(SOURCE_QUEUE, {durable: false})
+        .then(() => ch);
+}
 
 function processFile({fileName, ch}) {
     return fileWrapper.readFile(fileName || './data/default.json')
@@ -33,9 +50,14 @@ function processFile({fileName, ch}) {
             for (var i = 0; i < json.length; i++) {
                 let jsonItem = json[i];
                 console.log(jsonItem);
-                var separated = jsonItem.fireTimeSpan
-                    .split(':')
-                    .map(item => parseInt(item));
+                var separated = _.flatten(
+                    jsonItem.fireTimeSpan
+                        .split('.')
+                        .map(x => x.split(':'))
+                ).map(item => parseInt(item));
+
+                console.log(separated);
+
                 let ts = new timeSpan.TimeSpan(separated[3],
                     separated[2],
                     separated[1],
@@ -59,21 +81,39 @@ function processFile({fileName, ch}) {
         });
 }
 
+
+function initConsoleInput(ch) {
+    function recursiveReadLine() {
+        console.log('');
+        rl.question('Enter command: ', (commandRaw) => {
+            console.log('You\'ve entered:', commandRaw);
+
+            parseCommand(commandRaw)
+                .then(x => processCommand(x, ch))
+                .then(recursiveReadLine);
+        });
+    }
+
+    recursiveReadLine();
+}
+
 function processWrongCommand() {
     console.log('Wrong Command!!!')
 }
 
-function processCommand({command, parameters, fs}) {
+function processCommand({command, parameters}, ch) {
     return new Promise((res) => {
         switch (command) {
             case 'r':
             case 'read':
-                fs(parameters)
-                    .then(() => {
-                        res();
-                    }, () => {
-                        res();
-                    });
+                processFile({
+                    fileName: parameters.fileName,
+                    ch: ch
+                }).then(() => {
+                    res();
+                }, () => {
+                    res();
+                });
                 return;
             case 'q':
             case 'quit':
@@ -89,9 +129,10 @@ function processCommand({command, parameters, fs}) {
     });
 }
 
-function parseCommand(commandRaw, fs) {
+function parseCommand(commandRaw) {
     var command;
     var parameters;
+
     try {
         var splitted = commandRaw.split(' ');
         command = splitted[0];
@@ -110,56 +151,8 @@ function parseCommand(commandRaw, fs) {
         });
     }
 
-    return new Promise(res => {
-        res({command, parameters, fs})
+    return Promise.resolve({
+        command,
+        parameters
     });
 }
-
-function createChannel() {
-    return amqp.connect(RABBIT_SERVER_URL)
-        .then(conn => {
-            return conn.createChannel()
-                .then(ch => {
-                    executeOnQuit.push(() => {
-                        ch.close();
-                        conn.close();
-                        console.log(" [x] all connections closed.")
-                    });
-                    return ch;
-                });
-        });
-}
-
-function initQueue(ch) {
-    ch.assertQueue(SOURCE_QUEUE, {durable: false});
-    return ch;
-}
-
-function initFileProcessor(ch) {
-    return ({fileName}) => processFile({fileName, ch});
-}
-
-function initConsoleInput(fs) {
-    function recursiveReadLine() {
-        console.log('');
-        rl.question('Enter command: ', (commandRaw) => {
-            console.log('You\'ve entered:', commandRaw);
-
-            parseCommand(commandRaw, fs)
-                .then(processCommand)
-                .then(() => {
-                    recursiveReadLine();
-                });
-        });
-    }
-
-    recursiveReadLine();
-}
-
-
-
-
-
-
-
-
