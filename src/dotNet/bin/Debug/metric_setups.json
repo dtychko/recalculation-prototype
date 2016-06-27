@@ -8,7 +8,7 @@
 				entityTypes: 'UserStory, Bug'
 			}, {
 				id: 2,
-				metricId: 2,
+				metricId: 3,
 				entityTypes: 'Bug'
 			}
 		]

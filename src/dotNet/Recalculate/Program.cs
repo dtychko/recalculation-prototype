@@ -87,6 +87,7 @@ namespace Recalculate
 						};
 						service.Init();
 
+						Console.WriteLine(" [x] App Started. \n");
 						Console.ReadLine();
 					}
 				}

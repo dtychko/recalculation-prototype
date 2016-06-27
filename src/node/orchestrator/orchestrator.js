@@ -3,6 +3,7 @@ const ProtoBuf = require('protobufjs');
 const amqp = require('amqplib');
 const Guid = require('guid');
 const fetch = require('node-fetch');
+const dateFormat = require('dateformat');
 const accountStorage = require('./orchestrator.account_storage');
 
 const builder = ProtoBuf.loadProtoFile('./orchestrator.proto');
@@ -18,24 +19,24 @@ var COMPUTATION_LOG_URL = 'http://127.0.0.1:8081/update';
 var METRIC_SETUP_QUEUE = 'metric_setup_events';
 const QUEUE_DISCOVERY_QUEUE = 'queue_discovery_queue';
 const QUEUE_CHANGED_EXCHANGE = 'queue_changed_queue';
-var CANCELLATION_QUEUE = 'cancellation_queue';
+var CANCELLATION_EXCHANGE = 'cancellation_exchange';
 var QUEUE_PREFETCH = 5;
 
 createChannel()
     .then(prepareChannel)
     .then(startListening)
     .then(() => {
-        console.log(' [x] App started');
+        console.log(` [${now()}] App started`);
     })
     .catch(err => {
-        console.error(err);
+        console.error(` [${now()}] ERROR`, err);
     });
 
 function createChannel() {
     return amqp.connect(RABBIT_SERVER_URL)
         .then(conn => conn.createChannel())
         .then(ch => {
-            console.log(' [1] Connected and created channel.');
+            console.log(` [${now()}] 1. Connected and created channel.`);
             return ch;
         });
 }
@@ -45,9 +46,10 @@ function prepareChannel(ch) {
         ch.assertQueue(METRIC_SETUP_QUEUE, {durable: false}),
         ch.assertQueue(QUEUE_DISCOVERY_QUEUE, {durable: false}),
         ch.assertExchange(QUEUE_CHANGED_EXCHANGE, 'fanout', {durable: false}),
+        ch.assertExchange(CANCELLATION_EXCHANGE, 'fanout', {durable: false}),
         ch.prefetch(QUEUE_PREFETCH)
     ]).then(() => {
-        console.log(' [2] Asserted queues/exchanges.');
+        console.log(` [${now()}] 2. Asserted queues/exchanges.`);
         return ch;
     });
 }
@@ -57,14 +59,14 @@ function startListening(ch) {
         ch.consume(QUEUE_DISCOVERY_QUEUE, logErrors(queueDiscoveryMessageConsumer(ch))),
         ch.consume(METRIC_SETUP_QUEUE, logErrors(metricSetupQueueConsumer(ch)))
     ]).then(() => {
-        console.log(' [3] Initialized consumers.');
+        console.log(` [${now()}] 3. Initialized consumers.`);
         return ch;
     });
 }
 
 function queueDiscoveryMessageConsumer(ch) {
     return msg => {
-        console.log(` [x] Received RequestQueuesCommand.`);
+        console.log(` [${now()}] Received RequestQueuesCommand.`);
 
         RequestQueuesCommand.decode(msg.content);
 
@@ -83,23 +85,21 @@ function queueDiscoveryMessageConsumer(ch) {
 
                 ch.ack(msg);
 
-                console.log(` [x] Processed RequestQueuesCommand.`);
+                console.log(` [${now()}] Processed RequestQueuesCommand. Response=${JSON.stringify(queueCollection)}`);
             })
             .catch(err => {
                 ch.noAck(msg);
 
-                console.error(' [Error]', err);
+                console.error(` [${now()}] ERROR`, err);
             });
     };
 }
 
 function metricSetupQueueConsumer(ch) {
     return msg => {
-        console.log(' [x] Received MetricSetupChangedEvent.');
-
         const event = MetricSetupChangedEvent.decode(msg.content);
 
-        console.log(' [x]', JSON.stringify(event));
+        console.log(` [${now()}] Received MetricSetupChangedEvent.`, JSON.stringify(event).substring(0, 80));
 
         const eventId = Guid.raw();
         const accountId = event.accountId;
@@ -113,12 +113,12 @@ function metricSetupQueueConsumer(ch) {
             .then(() => {
                 ch.ack(msg);
 
-                console.log(' [x] Processed MetricSetupChangedEvent.');
+                console.log(` [${now()}] Processed MetricSetupChangedEvent#${eventId}.`);
             })
             .catch(err => {
                 ch.nack(msg);
 
-                console.error(' [Error]', err);
+                console.error(` [${now()}] ERROR`, err);
             });
     };
 }
@@ -131,11 +131,13 @@ function notifyIfQueueAdded(ch, queueName) {
 
         return ch.assertQueue(queueName, {durable: false})
             .then(() => {
-                var addQueueMessage = new QueueChangedEvent({
+                var event = new QueueChangedEvent({
                     queueName: queueName,
                     modification: 1
                 });
-                ch.publish(QUEUE_CHANGED_EXCHANGE, '', addQueueMessage.toBuffer());
+                ch.publish(QUEUE_CHANGED_EXCHANGE, '', event.toBuffer());
+
+                console.log(` [${now()}] Sent QueueChangedEvent. Payload=${JSON.stringify(event)}`);
             });
     };
 }
@@ -166,7 +168,7 @@ function updateComputationLog(eventId, accountId, metricSetupId, targetIds) {
 
         return res.json();
     }).then(json => {
-        console.log(` [x] Received cancellation map.`, JSON.stringify(json).substring(0, 80) + '...');
+        console.log(` [${now()}] Received cancellation map.`, JSON.stringify(json).substring(0, 80) + '...');
         return json;
     });
 }
@@ -187,10 +189,10 @@ function sendMessagesToCancellationQueue(ch, accountId, metricSetupId, cancellat
                 eventId
             });
 
-            var responseFlag = ch.sendToQueue(CANCELLATION_QUEUE, computationCancelledEvent.toBuffer());
-        });
+            var responseFlag = ch.publish(CANCELLATION_EXCHANGE, '', computationCancelledEvent.toBuffer());
 
-        console.log(' [x] Sent all cancellation commands.');
+            console.log(` [${now()}] Sent ComputationCancelledEvent#${eventId}`);
+        });
 
         res();
     });
@@ -212,7 +214,7 @@ function sendCalculationBatches(ch, queueName, eventId, accountId, metricSetup, 
 
             var responseFlag = ch.sendToQueue(queueName, command.toBuffer());
 
-            console.log(` [x] Sent CalculateMetricCommand#${commandId}`);
+            console.log(` [${now()}] Sent CalculateMetricCommand#${commandId}`);
         }
 
         res();
@@ -224,9 +226,9 @@ function getQueueName(accountId) {
 }
 
 var entityCountMap = {
-    'bug': 1000,
-    'userstory': 100,
-    'feature': 10
+    'bug': 500,
+    'userstory': 200,
+    'feature': 50
 };
 
 function getTargets(accountId, metricSetup) {
@@ -267,7 +269,11 @@ function logErrors(fn) {
         try {
             fn(...args);
         } catch (err) {
-            console.error(err);
+            console.error(` [${now()}] ERROR`, err);
         }
     };
+}
+
+function now() {
+    return dateFormat(new Date(), 'HH:MM:ss.L');
 }
