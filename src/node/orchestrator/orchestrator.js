@@ -3,7 +3,7 @@ const ProtoBuf = require('protobufjs');
 const amqp = require('amqplib');
 const Guid = require('guid');
 const fetch = require('node-fetch');
-const dateFormat = require('dateformat');
+const {log, error} = require('./../logging/loggin');
 const accountStorage = require('./orchestrator.account_storage');
 
 const builder = ProtoBuf.loadProtoFile('./orchestrator.proto');
@@ -26,17 +26,17 @@ createChannel()
     .then(prepareChannel)
     .then(startListening)
     .then(() => {
-        console.log(` [${now()}] App started`);
+        log(`App Started`);
     })
     .catch(err => {
-        console.error(` [${now()}] ERROR`, err);
+        error(err);
     });
 
 function createChannel() {
     return amqp.connect(RABBIT_SERVER_URL)
         .then(conn => conn.createChannel())
         .then(ch => {
-            console.log(` [${now()}] 1. Connected and created channel.`);
+            log(`1. Connected and created channel.`);
             return ch;
         });
 }
@@ -49,7 +49,7 @@ function prepareChannel(ch) {
         ch.assertExchange(CANCELLATION_EXCHANGE, 'fanout', {durable: false}),
         ch.prefetch(QUEUE_PREFETCH)
     ]).then(() => {
-        console.log(` [${now()}] 2. Asserted queues/exchanges.`);
+        log(`2. Asserted queues/exchanges.`);
         return ch;
     });
 }
@@ -59,14 +59,14 @@ function startListening(ch) {
         ch.consume(QUEUE_DISCOVERY_QUEUE, logErrors(queueDiscoveryMessageConsumer(ch))),
         ch.consume(METRIC_SETUP_QUEUE, logErrors(metricSetupQueueConsumer(ch)))
     ]).then(() => {
-        console.log(` [${now()}] 3. Initialized consumers.`);
+        log(`3. Initialized consumers.`);
         return ch;
     });
 }
 
 function queueDiscoveryMessageConsumer(ch) {
     return msg => {
-        console.log(` [${now()}] Received RequestQueuesCommand.`);
+        log(`Received RequestQueuesCommand.`);
 
         RequestQueuesCommand.decode(msg.content);
 
@@ -85,12 +85,12 @@ function queueDiscoveryMessageConsumer(ch) {
 
                 ch.ack(msg);
 
-                console.log(` [${now()}] Processed RequestQueuesCommand. Response=${JSON.stringify(queueCollection)}`);
+                log(`Processed RequestQueuesCommand`, `Response=${JSON.stringify(queueCollection)}`);
             })
             .catch(err => {
                 ch.noAck(msg);
 
-                console.error(` [${now()}] ERROR`, err);
+                error(err);
             });
     };
 }
@@ -99,12 +99,15 @@ function metricSetupQueueConsumer(ch) {
     return msg => {
         const event = MetricSetupChangedEvent.decode(msg.content);
 
-        console.log(` [${now()}] Received MetricSetupChangedEvent.`, JSON.stringify(event).substring(0, 80));
-
-        const eventId = Guid.raw();
+        const eventId = generateEventId();
         const accountId = event.accountId;
         const metricSetup = event.metricSetup;
         const queueName = getQueueName(accountId);
+
+        log(`Received MetricSetupChangedEvent`,
+            `EventId=${eventId}`,
+            `AccountId=${accountId}`,
+            `MetricSetupId=${metricSetup.id}`);
 
         accountStorage.addIfNotExists(accountId)
             .then(notifyIfQueueAdded(ch, queueName))
@@ -113,12 +116,13 @@ function metricSetupQueueConsumer(ch) {
             .then(() => {
                 ch.ack(msg);
 
-                console.log(` [${now()}] Processed MetricSetupChangedEvent#${eventId}.`);
+                log(`Processed MetricSetupChangedEvent`,
+                    `EventId=${eventId}`);
             })
             .catch(err => {
                 ch.nack(msg);
 
-                console.error(` [${now()}] ERROR`, err);
+                error(err);
             });
     };
 }
@@ -137,7 +141,9 @@ function notifyIfQueueAdded(ch, queueName) {
                 });
                 ch.publish(QUEUE_CHANGED_EXCHANGE, '', event.toBuffer());
 
-                console.log(` [${now()}] Sent QueueChangedEvent. Payload=${JSON.stringify(event)}`);
+                log(`Sent QueueChangedEvent`,
+                    `QueueName=${queueName}`,
+                    `Modification=${1}`);
             });
     };
 }
@@ -168,7 +174,9 @@ function updateComputationLog(eventId, accountId, metricSetupId, targetIds) {
 
         return res.json();
     }).then(json => {
-        console.log(` [${now()}] Received cancellation map.`, JSON.stringify(json).substring(0, 80) + '...');
+        log(`Received CancellationMap.`,
+            `Data=${JSON.stringify(json).substring(0, 100)}...`);
+
         return json;
     });
 }
@@ -191,7 +199,11 @@ function sendMessagesToCancellationQueue(ch, accountId, metricSetupId, cancellat
 
             var responseFlag = ch.publish(CANCELLATION_EXCHANGE, '', computationCancelledEvent.toBuffer());
 
-            console.log(` [${now()}] Sent ComputationCancelledEvent#${eventId}`);
+            log(`Sent ComputationCancelledEvent`,
+                `EventId=${eventId}`,
+                `AccountId=${accountId}`,
+                `MetricSetupId=${metricSetupId}`,
+                `TargetCount=${targetIds.length}`);
         });
 
         setTimeout(() => {
@@ -206,7 +218,7 @@ function sendCalculationBatches(ch, queueName, eventId, accountId, metricSetup, 
         var batches = createBatches(targetIds);
 
         for (let i = 0; i < batches.length; i++) {
-            var commandId = Guid.raw();
+            var commandId = generateCommandId();
             var command = new CalculateMetricCommand({
                 commandId,
                 eventId,
@@ -217,7 +229,12 @@ function sendCalculationBatches(ch, queueName, eventId, accountId, metricSetup, 
 
             var responseFlag = ch.sendToQueue(queueName, command.toBuffer());
 
-            console.log(` [${now()}] Sent CalculateMetricCommand#${commandId}. EventId=${eventId}`);
+            log(`Sent CalculateMetricCommand`,
+                `CommandId=${commandId}`,
+                `EventId=${eventId}`,
+                `AccountId=${accountId}`,
+                `MetricSetupId=${metricSetup.id}`,
+                `TargetCount=${targetIds.length}`);
         }
 
         res();
@@ -226,6 +243,19 @@ function sendCalculationBatches(ch, queueName, eventId, accountId, metricSetup, 
 
 function getQueueName(accountId) {
     return `calc_requests_for_account_${accountId}`;
+}
+
+var commandCounter = 0;
+var eventCounter = 0;
+
+function generateCommandId() {
+    //return Guid.raw();
+    return `cmd#${++commandCounter}`;
+}
+
+function generateEventId() {
+    //return Guid.raw();
+    return `event#${++eventCounter}`;
 }
 
 var entityCountMap = {
@@ -272,11 +302,7 @@ function logErrors(fn) {
         try {
             fn(...args);
         } catch (err) {
-            console.error(` [${now()}] ERROR`, err);
+            error(err);
         }
     };
-}
-
-function now() {
-    return dateFormat(new Date(), 'HH:MM:ss.L');
 }

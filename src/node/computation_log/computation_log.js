@@ -1,12 +1,12 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const redis = require('redis');
-const dateFormat = require('dateformat');
+const {log, error} = require('./../logging/loggin');
 const app = express();
 
 const db = redis.createClient('redis://192.168.99.100:6379/1');
 db.on('error', err => {
-    console.error(` [${now()}] ERROR Redis error`, err);
+    error(`Redis error`, err);
 });
 
 app.use(bodyParser.json());
@@ -18,21 +18,30 @@ app.post('/update', (req, res) => {
     var targetIds = req.body.targetIds;
 
     if (!eventId || !accountId || !metricSetupId || !targetIds || !targetIds.length) {
-        console.log(` [${now()}] Bad Request POST '/update' Body=${JSON.stringify(req.body)}`);
+        log(`Bad Request POST '/update'`,
+            `Body=${JSON.stringify(req.body)}`);
+
         res.status(400).send('Bad Request');
         return;
     }
 
-    console.log(` [${now()}] Received POST '/update'. EventId=${eventId}, AccountId=${accountId}, MetricSetupId=${metricSetupId}, TargetCount=${targetIds.length}`);
+    log(`Received POST '/update'`,
+        `EventId=${eventId}`,
+        `AccountId=${accountId}`,
+        `MetricSetupId=${metricSetupId}`,
+        `TargetCount=${targetIds.length}`);
 
     update(eventId, accountId, metricSetupId, targetIds)
         .then(result => {
             res.json(result);
-            console.log(` [${now()}] Processed POST '/update'. Response=${JSON.stringify(result).substring(0, 80)}...`);
+
+            log(`Processed POST '/update'`
+                `Response=${JSON.stringify(result).substring(0, 100)}...`);
         })
         .catch(err => {
-            console.error(` [${now()}] ERROR`, err);
             res.status(500).send('Internal Server Error');
+
+            error(`Internal Server Error POST '/update'`, err);
         });
 });
 
@@ -103,10 +112,6 @@ function makeKeyGenerator(accountId, metricSetupId) {
     return targetId => `${accountId}_${metricSetupId}_${targetId}`;
 }
 
-function now() {
-    return dateFormat(new Date(), 'HH:MM:ss.L');
-}
-
 app.listen(8081, () => {
-    console.log(` [${now()}] App started`);
+    log(`App Started`);
 });

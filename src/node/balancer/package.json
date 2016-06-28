@@ -10,7 +10,6 @@
   "license": "ISC",
   "dependencies": {
     "amqplib": "^0.4.2",
-    "dateformat": "^1.0.12",
     "guid": "0.0.12",
     "protobufjs": "^5.0.1",
     "underscore": "^1.8.3"

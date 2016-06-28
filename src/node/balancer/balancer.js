@@ -2,7 +2,7 @@ const _ = require('underscore');
 const ProtoBuf = require('protobufjs');
 const amqp = require('amqplib');
 const Guid = require('guid');
-const dateFormat = require('dateformat');
+const {log, error} = require('./../logging/loggin');
 const queueRegistry = require('./balancer.queue_registry');
 const messagePool = require('./balancer.message_pool');
 const cancellationStore = require('./balancer.cancellation_store');
@@ -30,17 +30,17 @@ createChannel()
     .then(initConsumers)
     .then(initShortQueue)
     .then(() => {
-        console.log(` [${now()}] App Started`);
+        log(`App Started`);
     })
     .catch(err => {
-        console.error(` [${now()}] ERROR`, err);
+        error(err);
     });
 
 function createChannel() {
     return amqp.connect(RABBIT_SERVER_URL)
         .then(conn => conn.createChannel())
         .then(ch => {
-            console.log(` [${now()}] 1. Connected and created channel.`);
+            log(`1. Connected and created channel.`);
             return ch;
         });
 }
@@ -48,7 +48,7 @@ function createChannel() {
 function prepareChannel(ch) {
     return ch.prefetch(CHANNEL_PREFETCH)
         .then(() => {
-            console.log(` [${now()}] 2. Set channel prefetch size.`);
+            log(`2. Set channel prefetch size.`);
             return ch;
         });
 }
@@ -62,12 +62,16 @@ function subscribeToCancellationQueue(ch) {
         .then(q => ch.consume(q.queue, logErrors(msg => {
             const event = ComputationCancelledEvent.decode(msg.content);
 
-            console.log(` [${now()}] Received ComputationCancelledEvent#${event.eventId}.`);
+            log(`Received ComputationCancelledEvent`,
+                `EventId=${event.eventId}`,
+                `AccountId=${event.accountId}`,
+                `MetricSetupId=${event.metricSetupId}`,
+                `TargetCount=${event.targetIds.length}`);
 
             cancellationStore.add(event.accountId, event.metricSetupId, event.targetIds, event.eventId);
         }), {noAck: true}))
         .then(() => {
-            console.log(` [${now()}] 3. Subscribed to ComputationCancelledEvent.`);
+            log(`3. Subscribed to ComputationCancelledEvent.`);
             return ch;
         });
 }
@@ -81,7 +85,9 @@ function subscribeToQueueChangedExchange(ch) {
         .then(q => ch.consume(q.queue, logErrors(msg => {
             const event = QueueChangedEvent.decode(msg.content);
 
-            console.log(` [${now()}] Received QueueChangedEvent. QueueName=${event.queueName}, Modification=${event.modification}`);
+            log(`Received QueueChangedEvent`,
+                `QueueName=${event.queueName}`,
+                `Modification=${event.modification}`);
 
             if (event.modification === 1) {
                 queueRegistry.add(event.queueName);
@@ -90,7 +96,7 @@ function subscribeToQueueChangedExchange(ch) {
             }
         }), {noAck: true}))
         .then(() => {
-            console.log(` [${now()}] 4. Subscribed to QueueChangedEvent.`);
+            log(`4. Subscribed to QueueChangedEvent.`);
             return ch;
         });
 }
@@ -115,7 +121,8 @@ function discoverQueues(ch) {
 
                             ch.cancel(consumerTag);
 
-                            console.log(` [${now()}] 5. Received QueuesCollection. QueueNames=[${_.toArray(collection.queueNames).join(', ')}]`);
+                            log(`5. Received QueuesCollection`,
+                                `QueueNames=[${_.toArray(collection.queueNames).join(', ')}]`);
 
                             res(ch);
                         }
@@ -127,7 +134,7 @@ function discoverQueues(ch) {
                             replyTo: responseQ.queue
                         });
 
-                        console.log(` [${now()}] 5. Sent request for queue discovery.`);
+                        log(`5. Sent request for queue discovery.`);
                     });
             });
     });
@@ -146,7 +153,11 @@ function initConsumers(ch) {
             .then(() => ch.consume(queueName, logErrors(msg => {
                 var command = CalculateMetricCommand.decode(msg.content);
 
-                console.log(` [${now()}] Received CalculateMetricCommand#${command.commandId}. EventId=${command.eventId}, AccountId=${command.accountId}, MetricSetupId=${command.metricSetup.id}, TargetCount=${command.targetIds.length}`);
+                log(`Received CalculateMetricCommand`,
+                    `EventId=${command.eventId}`,
+                    `AccountId=${command.accountId}`,
+                    `MetricSetupId=${command.metricSetup.id}`,
+                    `TargetCount=${command.targetIds.length}`);
 
                 messagePool.add(command, () => {
                     ch.ack(msg);
@@ -155,7 +166,8 @@ function initConsumers(ch) {
             .then(ok => {
                 queueNameToConsumer[queueName].consumerTag = ok.consumerTag;
 
-                console.log(` [${now()}] Started consuming queue. QueueName=${queueName}`);
+                log(`Started consuming queue`,
+                    `QueueName=${queueName}`);
             });
     }
 
@@ -164,7 +176,7 @@ function initConsumers(ch) {
 
     return Promise.all(_.map(queueRegistry.getAll(), initConsumer))
         .then(() => {
-            console.log(` [${now()}] 6. Initialized consumers.`);
+            log(`6. Initialized consumers.`);
             return ch;
         });
 }
@@ -175,7 +187,7 @@ function initShortQueue(ch) {
             checkShortQueue(ch);
         })
         .then(() => {
-            console.log(` [${now()}] 7. Initialized short queue.`);
+            log(`7. Initialized short queue.`);
             return ch;
         });
 }
@@ -194,7 +206,7 @@ function checkShortQueue(ch) {
 
                 promise
                     .catch(err => {
-                        console.error(` [${now()}] ERROR`, err);
+                        error(err);
                     })
                     .then(() => {
                         timeout(10, ch).then(checkShortQueue);
@@ -227,9 +239,16 @@ function messageHandler(ch) {
                 // TODO: that sent message is received
                 ch.sendToQueue(SHORT_QUEUE, command.toBuffer());
 
-                console.log(` [${now()}] Sent CalculateMetricCommand#${command.commandId}`);
+                log(`Sent CalculateMetricCommand#${command.commandId}`,
+                    `CommandId=${command.commandId}`,
+                    `EventId=${command.eventId}`,
+                    `AccountId=${command.accountId}`,
+                    `MetricSetupId=${command.metricSetup.id}`,
+                    `TargetCount=${command.targetIds.length}`);
             } else {
-                console.log(` [${now()}] Cancelled CalculateMetricCommand#${command.commandId}`);
+                log(`Cancelled CalculateMetricCommand`,
+                    `CommandId=${command.commandId}`,
+                    `EventId=${command.eventId}`);
             }
 
             msgHolder.ack();
@@ -253,11 +272,7 @@ function logErrors(fn) {
         try {
             fn(...args);
         } catch (err) {
-            console.error(err);
+            error(err);
         }
     };
-}
-
-function now() {
-    return dateFormat(new Date(), 'HH:MM:ss.L');
 }
