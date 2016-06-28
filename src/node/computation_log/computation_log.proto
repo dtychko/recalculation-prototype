@@ -1,0 +1,6 @@
+message ProcessingFinishedEvent {
+    required int32 accountId = 1;
+    required int32 metricSetupId = 2;
+    repeated int32 targetIds = 3 [packed = true];
+    required string eventId = 4;
+}

@@ -11,7 +11,7 @@
       }
     }
   },  {
-    "fireTimeSpan": "00:00:10:000",
+    "fireTimeSpan": "00:00:02:000",
     "changeEvent": {
       "accountId": 4,
       "modification": 2,

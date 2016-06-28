@@ -2,14 +2,27 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const redis = require('redis');
 const {log, error} = require('./../logging/loggin');
-const app = express();
+const amqp = require('amqplib');
+const ProtoBuf = require('protobufjs');
 
-const db = redis.createClient('redis://192.168.99.100:6379/1');
+const app = express();
+const builder = ProtoBuf.loadProtoFile('./computation_log.proto');
+
+const REDIS_SERVER_URL = 'redis://192.168.99.100:6379/1';
+const RABBIT_SERVER_URL = 'amqp://192.168.99.100';
+const PROCESSING_FINISHED_QUEUE = 'processing_finished_queue';
+
+const ProcessingFinishedEvent = builder.build('ProcessingFinishedEvent');
+
+const db = redis.createClient(REDIS_SERVER_URL);
 db.on('error', err => {
     error(`Redis error`, err);
 });
 
 app.use(bodyParser.json());
+
+createChannel()
+    .then(initProcessingFinishedQueue);
 
 app.post('/update', (req, res) => {
     var eventId = req.body.eventId;
@@ -45,6 +58,51 @@ app.post('/update', (req, res) => {
         });
 });
 
+
+function createChannel() {
+    return amqp.connect(RABBIT_SERVER_URL)
+        .then(conn => conn.createChannel())
+        .then(ch => {
+            log(` 1. Connected and created channel.`);
+            return ch;
+        });
+}
+
+function initProcessingFinishedQueue(ch) {
+    return ch.assertQueue(PROCESSING_FINISHED_QUEUE, {durable: false})
+        .then(q => {
+            ch.consume(q.queue, msg => {
+                const event = ProcessingFinishedEvent.decode(msg.content);
+                const eventId = event.eventId;
+                const accountId = event.accountId;
+                const metricSetupId = event.metricSetupId;
+                const targetIds = event.targetIds;
+
+                remove(eventId, accountId, metricSetupId, targetIds)
+                    .then(({replies, iterator}) => {
+                        log(` ${replies} keys were removed on ${iterator} attempt.`,
+                            `accountId = ${accountId}`,
+                            `metricSetupId = ${metricSetupId}`,
+                            `targetIds = ${targetIds}`);
+                    })
+                    .catch(err => {
+                        log(` Error while removing keys: ${err}`,
+                            `accountId = ${accountId}`,
+                            `metricSetupId = ${metricSetupId}`,
+                            `targetIds = ${targetIds}`);
+                    })
+                    .then(() => {
+                        ch.ack(msg);
+                    });
+            })
+        })
+        .then(() => {
+            log(` 1. Initialiazed ${PROCESSING_FINISHED_QUEUE}.`);
+        })
+        .then(() => ch);
+}
+
+
 function update(eventId, accountId, metricSetupId, targetIds) {
     var generateKey = makeKeyGenerator(accountId, metricSetupId);
 
@@ -79,6 +137,7 @@ function getLastEventIds(client, targetIds, generateKey) {
     });
 }
 
+
 function setEventId(client, targetIds, generateKey, eventId) {
     return new Promise((resolve, reject) => {
         var args = targetIds
@@ -92,6 +151,52 @@ function setEventId(client, targetIds, generateKey, eventId) {
 
             resolve();
         })
+    });
+}
+
+function remove(eventId, accountId, metricSetupId, targetIds) {
+    var generateKey = makeKeyGenerator(accountId, metricSetupId);
+
+    return watchRemove(targetIds, eventId, generateKey);
+}
+
+function watchRemove(targetIds, eventId, generateKey) {
+    return new Promise((resolve, reject) => {
+        const keys = targetIds.map(x => generateKey(x));
+        const client = new redis.createClient(REDIS_SERVER_URL);
+
+        client.watch(keys);
+
+        function recursiveRemoval(iterator) {
+            iterator++;
+
+            client.mget(keys, function (err, eventIds) {
+                const keysToDelete = keys
+                    .filter((key, index) => eventIds[index] === eventId);
+                if (keysToDelete.length) {
+                    const multi = client.multi();
+                    multi.del(keysToDelete, (err, ok) => {
+                    });
+                    multi.exec((err, replies) => {
+                        if (err || replies === null) {
+                            if (iterator === 5) {
+                                reject({err, iterator});
+                                return;
+                            }
+
+                            recursiveRemoval(iterator);
+                            return;
+                        }
+                        resolve({replies, iterator});
+                    });
+                } else {
+                    resolve({replies: 0, iterator: iterator})
+                }
+
+            });
+        }
+
+        recursiveRemoval(0);
     });
 }
 

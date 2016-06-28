@@ -1,0 +1,98 @@
+[
+  {
+    "fireTimeSpan": "00:00:00:005",
+    "changeEvent": {
+      "accountId": 2,
+      "modification": 2,
+      "metricSetup": {
+        "id": 1,
+        "metricId": 1,
+        "entityTypes": "bug, userStory"
+      }
+    }
+  },
+  {
+    "fireTimeSpan": "00:00:02:000",
+    "changeEvent": {
+      "accountId": 4,
+      "modification": 2,
+      "metricSetup": {
+        "id": 1,
+        "metricId": 1,
+        "entityTypes": "feature"
+      }
+    }
+  },
+  {
+    "fireTimeSpan": "00:00:01:000",
+    "changeEvent": {
+      "accountId": 4,
+      "modification": 2,
+      "metricSetup": {
+        "id": 1,
+        "metricId": 1,
+        "entityTypes": "bug, userStory"
+      }
+    }
+  },
+  {
+    "fireTimeSpan": "00:00:01:500",
+    "changeEvent": {
+      "accountId": 3,
+      "modification": 1,
+      "metricSetup": {
+        "id": 1,
+        "metricId": 1,
+        "entityTypes": "bug, userStory, feature"
+      }
+    }
+  },
+  {
+    "fireTimeSpan": "00:00:01:500",
+    "changeEvent": {
+      "accountId": 3,
+      "modification": 1,
+      "metricSetup": {
+        "id": 1,
+        "metricId": 5,
+        "entityTypes": "userStory, feature"
+      }
+    }
+  },
+  {
+    "fireTimeSpan": "00:00:02:000",
+    "changeEvent": {
+      "accountId": 3,
+      "modification": 1,
+      "metricSetup": {
+        "id": 1,
+        "metricId": 4,
+        "entityTypes": "userStory"
+      }
+    }
+  },
+  {
+    "fireTimeSpan": "00:00:01:000",
+    "changeEvent": {
+      "accountId": 3,
+      "modification": 1,
+      "metricSetup": {
+        "id": 1,
+        "metricId": 4,
+        "entityTypes": "userStory"
+      }
+    }
+  },
+  {
+    "fireTimeSpan": "00:00:01:000",
+    "changeEvent": {
+      "accountId": 1,
+      "modification": 1,
+      "metricSetup": {
+        "id": 1,
+        "metricId": 4,
+        "entityTypes": "userStory"
+      }
+    }
+  }
+]

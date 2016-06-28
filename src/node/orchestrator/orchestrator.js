@@ -111,7 +111,7 @@ function metricSetupQueueConsumer(ch) {
 
         accountStorage.addIfNotExists(accountId)
             .then(notifyIfQueueAdded(ch, queueName))
-            .then(() => getTargets(accountId, metricSetup))
+            .then(() => getTargets(metricSetup))
             .then(targetIds => processTargetIds(ch, queueName, eventId, accountId, metricSetup, targetIds))
             .then(() => {
                 ch.ack(msg);
@@ -259,20 +259,33 @@ function generateEventId() {
 }
 
 var entityCountMap = {
-    'bug': 500,
-    'userstory': 200,
-    'feature': 50
+    'bug': {
+        startFrom: 1,
+        count: 500
+    },
+    'userstory': {
+        startFrom: 10000,
+        count: 200
+    },
+    'feature': {
+        startFrom: 100000,
+        count: 50
+    }
 };
 
-function getTargets(accountId, metricSetup) {
+function getTargets(metricSetup) {
     return new Promise(resolve => {
         setTimeout(() => {
             var entityTypes = metricSetup.entityTypes.toLowerCase().replace(' ', '').split(',');
-            var count = entityTypes.reduce((acc, type) => {
-                return acc + (entityCountMap[type] || 0);
-            }, 0);
+            var result = entityTypes.reduce((acc, type) => {
+                const description = entityCountMap[type] || {startFrom: 0, count: 0};
+                const startFrom = description.startFrom;
+                var count = description.count;
 
-            resolve(_.range(0, count))
+                return acc.concat(_.range(startFrom, startFrom + count));
+            }, []);
+            console.log(result);
+            resolve(result);
         }, 1000);
     });
 }

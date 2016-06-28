@@ -13,10 +13,12 @@ const RequestQueuesCommand = builder.build('RequestQueuesCommand');
 const QueuesCollection = builder.build('QueuesCollection');
 const QueueChangedEvent = builder.build('QueueChangedEvent');
 const CalculateMetricCommand = builder.build('CalculateMetricCommand');
+const ProcessingFinishedEvent = builder.build('ProcessingFinishedEvent');
 
 const RABBIT_SERVER_URL = 'amqp://192.168.99.100';
 const QUEUE_DISCOVERY_QUEUE = 'queue_discovery_queue';
 const QUEUE_CHANGED_EXCHANGE = 'queue_changed_queue';
+const PROCESSING_FINISHED_QUEUE = 'processing_finished_queue';
 const CANCELLATION_EXCHANGE = 'cancellation_exchange';
 const SHORT_QUEUE = 'short_queue';
 const CHANNEL_PREFETCH = 100;
@@ -24,6 +26,7 @@ const SHORT_QUEUE_DNO = 10;
 
 createChannel()
     .then(prepareChannel)
+    .then(initProcessingFinishedQueue)
     .then(subscribeToCancellationQueue)
     .then(subscribeToQueueChangedExchange)
     .then(discoverQueues)
@@ -51,6 +54,12 @@ function prepareChannel(ch) {
             log(`2. Set channel prefetch size.`);
             return ch;
         });
+}
+
+function initProcessingFinishedQueue(ch) {
+    return ch.assertQueue(PROCESSING_FINISHED_QUEUE, { durable: false })
+        .then(() => { log(` Initialiazed ${PROCESSING_FINISHED_QUEUE}.`); })
+        .then(() => ch);
 }
 
 function subscribeToCancellationQueue(ch) {
@@ -238,13 +247,22 @@ function messageHandler(ch) {
                 // TODO: Probably we need to use ConfirmChannel to get ack from the server\
                 // TODO: that sent message is received
                 ch.sendToQueue(SHORT_QUEUE, command.toBuffer());
-
+                
                 log(`Sent CalculateMetricCommand#${command.commandId}`,
                     `CommandId=${command.commandId}`,
                     `EventId=${command.eventId}`,
                     `AccountId=${command.accountId}`,
                     `MetricSetupId=${command.metricSetup.id}`,
                     `TargetCount=${command.targetIds.length}`);
+
+                var processingFinishedEvent = new ProcessingFinishedEvent({
+                    accountId: command.accountId,
+                    metricSetupId: command.metricSetup.metricId,
+                    targetIds: actualTargetIds,
+                    eventId: command.eventId});
+
+                ch.sendToQueue(PROCESSING_FINISHED_QUEUE, processingFinishedEvent.toBuffer());
+                log(` Sent to ${PROCESSING_FINISHED_QUEUE} #${command.commandId}`);
             } else {
                 log(`Cancelled CalculateMetricCommand`,
                     `CommandId=${command.commandId}`,
