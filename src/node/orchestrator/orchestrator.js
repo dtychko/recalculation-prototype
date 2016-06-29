@@ -175,7 +175,7 @@ function updateComputationLog(eventId, accountId, metricSetupId, targetIds) {
         return res.json();
     }).then(json => {
         log(`Received CancellationMap.`,
-            `Data=${JSON.stringify(json).substring(0, 100)}...`);
+            `Data=${JSON.stringify(json)}`);
 
         return json;
     });
@@ -203,7 +203,7 @@ function sendMessagesToCancellationQueue(ch, accountId, metricSetupId, cancellat
                 `EventId=${eventId}`,
                 `AccountId=${accountId}`,
                 `MetricSetupId=${metricSetupId}`,
-                `TargetCount=${targetIds.length}`);
+                `Targets=${targetIds}`);
         });
 
         setTimeout(() => {
@@ -224,7 +224,7 @@ function sendCalculationBatches(ch, queueName, eventId, accountId, metricSetup, 
                 eventId,
                 accountId,
                 metricSetup,
-                targetIds
+                targetIds: batches[i]
             });
 
             var responseFlag = ch.sendToQueue(queueName, command.toBuffer());
@@ -234,7 +234,7 @@ function sendCalculationBatches(ch, queueName, eventId, accountId, metricSetup, 
                 `EventId=${eventId}`,
                 `AccountId=${accountId}`,
                 `MetricSetupId=${metricSetup.id}`,
-                `TargetCount=${targetIds.length}`);
+                `Targets=${batches[i]}`);
         }
 
         res();
@@ -261,15 +261,15 @@ function generateEventId() {
 var entityCountMap = {
     'bug': {
         startFrom: 1,
-        count: 500
+        count: 5
     },
     'userstory': {
-        startFrom: 10000,
-        count: 200
+        startFrom: 1000,
+        count: 2
     },
     'feature': {
-        startFrom: 100000,
-        count: 50
+        startFrom: 1000000,
+        count: 1
     }
 };
 
@@ -284,7 +284,7 @@ function getTargets(metricSetup) {
 
                 return acc.concat(_.range(startFrom, startFrom + count));
             }, []);
-            console.log(result);
+
             resolve(result);
         }, 1000);
     });
@@ -297,7 +297,7 @@ function createBatches(targetIds) {
     for (var i = 0; i < targetIds.length; i++) {
         batch.push(targetIds[i]);
 
-        if (batch.length >= 100) {
+        if (batch.length >= 2) {
             result.push(batch);
             batch = [];
         }

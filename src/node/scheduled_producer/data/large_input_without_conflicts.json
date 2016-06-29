@@ -1,0 +1,310 @@
+[
+  {
+    "fireTimeSpan": "00:00:00:000",
+    "changeEvent": {
+      "accountId": 1,
+      "modification": 0,
+      "metricSetup": {
+        "id": 1,
+        "metricId": 1,
+        "entityTypes": "bug, userStory"
+      }
+    }
+  },
+  {
+    "fireTimeSpan": "00:00:00:100",
+    "changeEvent": {
+      "accountId": 1,
+      "modification": 0,
+      "metricSetup": {
+        "id": 2,
+        "metricId": 1,
+        "entityTypes": "bug, userStory"
+      }
+    }
+  },
+  {
+    "fireTimeSpan": "00:00:00:200",
+    "changeEvent": {
+      "accountId": 1,
+      "modification": 0,
+      "metricSetup": {
+        "id": 1,
+        "metricId": 1,
+        "entityTypes": "feature"
+      }
+    }
+  },
+  {
+    "fireTimeSpan": "00:00:00:300",
+    "changeEvent": {
+      "accountId": 1,
+      "modification": 0,
+      "metricSetup": {
+        "id": 3,
+        "metricId": 1,
+        "entityTypes": "bug, userStory, feature"
+      }
+    }
+  },
+  {
+    "fireTimeSpan": "00:00:00:400",
+    "changeEvent": {
+      "accountId": 1,
+      "modification": 0,
+      "metricSetup": {
+        "id": 4,
+        "metricId": 1,
+        "entityTypes": "bug, userStory, feature"
+      }
+    }
+  },
+  {
+    "fireTimeSpan": "00:00:00:500",
+    "changeEvent": {
+      "accountId": 1,
+      "modification": 0,
+      "metricSetup": {
+        "id": 5,
+        "metricId": 1,
+        "entityTypes": "bug, userStory, feature"
+      }
+    }
+  },
+  {
+    "fireTimeSpan": "00:00:00:600",
+    "changeEvent": {
+      "accountId": 1,
+      "modification": 0,
+      "metricSetup": {
+        "id": 6,
+        "metricId": 1,
+        "entityTypes": "bug, userStory, feature"
+      }
+    }
+  },
+  {
+    "fireTimeSpan": "00:00:00:700",
+    "changeEvent": {
+      "accountId": 1,
+      "modification": 0,
+      "metricSetup": {
+        "id": 7,
+        "metricId": 1,
+        "entityTypes": "bug, userStory, feature"
+      }
+    }
+  },
+  {
+    "fireTimeSpan": "00:00:00:800",
+    "changeEvent": {
+      "accountId": 1,
+      "modification": 0,
+      "metricSetup": {
+        "id": 8,
+        "metricId": 1,
+        "entityTypes": "bug"
+      }
+    }
+  },
+  {
+    "fireTimeSpan": "00:00:00:900",
+    "changeEvent": {
+      "accountId": 1,
+      "modification": 0,
+      "metricSetup": {
+        "id": 8,
+        "metricId": 1,
+        "entityTypes": "userStory"
+      }
+    }
+  },
+  {
+    "fireTimeSpan": "00:00:01:000",
+    "changeEvent": {
+      "accountId": 1,
+      "modification": 0,
+      "metricSetup": {
+        "id": 8,
+        "metricId": 1,
+        "entityTypes": "feature"
+      }
+    }
+  },
+
+
+
+
+  {
+    "fireTimeSpan": "00:00:00:000",
+    "changeEvent": {
+      "accountId": 2,
+      "modification": 0,
+      "metricSetup": {
+        "id": 1,
+        "metricId": 1,
+        "entityTypes": "bug, userStory"
+      }
+    }
+  },
+  {
+    "fireTimeSpan": "00:00:00:100",
+    "changeEvent": {
+      "accountId": 2,
+      "modification": 0,
+      "metricSetup": {
+        "id": 2,
+        "metricId": 1,
+        "entityTypes": "bug, userStory"
+      }
+    }
+  },
+  {
+    "fireTimeSpan": "00:00:00:200",
+    "changeEvent": {
+      "accountId": 2,
+      "modification": 0,
+      "metricSetup": {
+        "id": 1,
+        "metricId": 1,
+        "entityTypes": "feature"
+      }
+    }
+  },
+  {
+    "fireTimeSpan": "00:00:00:300",
+    "changeEvent": {
+      "accountId": 2,
+      "modification": 0,
+      "metricSetup": {
+        "id": 3,
+        "metricId": 1,
+        "entityTypes": "bug, userStory, feature"
+      }
+    }
+  },
+  {
+    "fireTimeSpan": "00:00:00:400",
+    "changeEvent": {
+      "accountId": 2,
+      "modification": 0,
+      "metricSetup": {
+        "id": 4,
+        "metricId": 1,
+        "entityTypes": "bug, userStory, feature"
+      }
+    }
+  },
+  {
+    "fireTimeSpan": "00:00:00:500",
+    "changeEvent": {
+      "accountId": 2,
+      "modification": 0,
+      "metricSetup": {
+        "id": 5,
+        "metricId": 1,
+        "entityTypes": "bug, userStory, feature"
+      }
+    }
+  },
+  {
+    "fireTimeSpan": "00:00:00:600",
+    "changeEvent": {
+      "accountId": 2,
+      "modification": 0,
+      "metricSetup": {
+        "id": 6,
+        "metricId": 1,
+        "entityTypes": "bug, userStory, feature"
+      }
+    }
+  },
+  {
+    "fireTimeSpan": "00:00:00:700",
+    "changeEvent": {
+      "accountId": 2,
+      "modification": 0,
+      "metricSetup": {
+        "id": 7,
+        "metricId": 1,
+        "entityTypes": "bug, userStory, feature"
+      }
+    }
+  },
+  {
+    "fireTimeSpan": "00:00:00:800",
+    "changeEvent": {
+      "accountId": 2,
+      "modification": 0,
+      "metricSetup": {
+        "id": 8,
+        "metricId": 1,
+        "entityTypes": "bug"
+      }
+    }
+  },
+  {
+    "fireTimeSpan": "00:00:00:900",
+    "changeEvent": {
+      "accountId": 2,
+      "modification": 0,
+      "metricSetup": {
+        "id": 8,
+        "metricId": 1,
+        "entityTypes": "userStory"
+      }
+    }
+  },
+  {
+    "fireTimeSpan": "00:00:01:000",
+    "changeEvent": {
+      "accountId": 2,
+      "modification": 0,
+      "metricSetup": {
+        "id": 8,
+        "metricId": 1,
+        "entityTypes": "feature"
+      }
+    }
+  },
+
+
+
+
+  {
+    "fireTimeSpan": "00:00:00:100",
+    "changeEvent": {
+      "accountId": 3,
+      "modification": 0,
+      "metricSetup": {
+        "id": 1,
+        "metricId": 1,
+        "entityTypes": "bug, userStory"
+      }
+    }
+  },
+  {
+    "fireTimeSpan": "00:00:00:400",
+    "changeEvent": {
+      "accountId": 3,
+      "modification": 0,
+      "metricSetup": {
+        "id": 2,
+        "metricId": 1,
+        "entityTypes": "userStory"
+      }
+    }
+  },
+  {
+    "fireTimeSpan": "00:00:00:700",
+    "changeEvent": {
+      "accountId": 3,
+      "modification": 0,
+      "metricSetup": {
+        "id": 3,
+        "metricId": 1,
+        "entityTypes": "feature"
+      }
+    }
+  }
+]

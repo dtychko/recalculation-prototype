@@ -16,9 +16,9 @@ namespace Recalculate.Calculator
 	{
 		public static readonly string RabbitMqHostName = "192.168.99.100";
 
-		public static readonly ushort RabbitMqPrefetchCount = 20;
+		public static readonly ushort RabbitMqPrefetchCount = 4;
 
-		public static readonly TimeSpan MaxMetricExecutionTime = TimeSpan.FromMilliseconds(5);
+		public static readonly TimeSpan MaxMetricExecutionTime = TimeSpan.FromMilliseconds(800);
 		public static readonly TimeSpan MetricSetupReadingTime = TimeSpan.FromMilliseconds(1);
 
 		public static readonly string ShortQueueName = "short_queue";

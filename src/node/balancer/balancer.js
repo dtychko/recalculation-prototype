@@ -22,7 +22,7 @@ const PROCESSING_FINISHED_QUEUE = 'processing_finished_queue';
 const CANCELLATION_EXCHANGE = 'cancellation_exchange';
 const SHORT_QUEUE = 'short_queue';
 const CHANNEL_PREFETCH = 100;
-const SHORT_QUEUE_DNO = 10;
+const SHORT_QUEUE_DNO = 3;
 
 createChannel()
     .then(prepareChannel)
@@ -57,8 +57,10 @@ function prepareChannel(ch) {
 }
 
 function initProcessingFinishedQueue(ch) {
-    return ch.assertQueue(PROCESSING_FINISHED_QUEUE, { durable: false })
-        .then(() => { log(` Initialiazed ${PROCESSING_FINISHED_QUEUE}.`); })
+    return ch.assertQueue(PROCESSING_FINISHED_QUEUE, {durable: false})
+        .then(() => {
+            log(` Initialiazed ${PROCESSING_FINISHED_QUEUE}.`);
+        })
         .then(() => ch);
 }
 
@@ -75,7 +77,7 @@ function subscribeToCancellationQueue(ch) {
                 `EventId=${event.eventId}`,
                 `AccountId=${event.accountId}`,
                 `MetricSetupId=${event.metricSetupId}`,
-                `TargetCount=${event.targetIds.length}`);
+                `Targets=${event.targetIds}`);
 
             cancellationStore.add(event.accountId, event.metricSetupId, event.targetIds, event.eventId);
         }), {noAck: true}))
@@ -166,7 +168,7 @@ function initConsumers(ch) {
                     `EventId=${command.eventId}`,
                     `AccountId=${command.accountId}`,
                     `MetricSetupId=${command.metricSetup.id}`,
-                    `TargetCount=${command.targetIds.length}`);
+                    `Targets=${command.targetIds}`);
 
                 messagePool.add(command, () => {
                     ch.ack(msg);
@@ -247,22 +249,27 @@ function messageHandler(ch) {
                 // TODO: Probably we need to use ConfirmChannel to get ack from the server\
                 // TODO: that sent message is received
                 ch.sendToQueue(SHORT_QUEUE, command.toBuffer());
-                
-                log(`Sent CalculateMetricCommand#${command.commandId}`,
+
+                log(`Sent CalculateMetricCommand to SHORT_QUEUE`,
                     `CommandId=${command.commandId}`,
                     `EventId=${command.eventId}`,
                     `AccountId=${command.accountId}`,
                     `MetricSetupId=${command.metricSetup.id}`,
-                    `TargetCount=${command.targetIds.length}`);
+                    `Targets=${command.targetIds}`);
 
                 var processingFinishedEvent = new ProcessingFinishedEvent({
                     accountId: command.accountId,
-                    metricSetupId: command.metricSetup.metricId,
+                    metricSetupId: command.metricSetup.id,
                     targetIds: actualTargetIds,
-                    eventId: command.eventId});
+                    eventId: command.eventId
+                });
 
                 ch.sendToQueue(PROCESSING_FINISHED_QUEUE, processingFinishedEvent.toBuffer());
-                log(` Sent to ${PROCESSING_FINISHED_QUEUE} #${command.commandId}`);
+                log(`Sent ProcessingFinishedEvent`,
+                    `EventId = ${command.eventId}`,
+                    `AccountId = ${command.accountId}`,
+                    `MetricSetupId = ${command.metricSetup.id}`,
+                    `TargetIds = ${command.targetIds}`);
             } else {
                 log(`Cancelled CalculateMetricCommand`,
                     `CommandId=${command.commandId}`,

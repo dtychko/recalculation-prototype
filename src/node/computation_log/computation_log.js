@@ -21,9 +21,6 @@ db.on('error', err => {
 
 app.use(bodyParser.json());
 
-createChannel()
-    .then(initProcessingFinishedQueue);
-
 app.post('/update', (req, res) => {
     var eventId = req.body.eventId;
     var accountId = req.body.accountId;
@@ -42,14 +39,14 @@ app.post('/update', (req, res) => {
         `EventId=${eventId}`,
         `AccountId=${accountId}`,
         `MetricSetupId=${metricSetupId}`,
-        `TargetCount=${targetIds.length}`);
+        `Targets=${targetIds}`);
 
     update(eventId, accountId, metricSetupId, targetIds)
         .then(result => {
             res.json(result);
 
-            log(`Processed POST '/update'`
-                `Response=${JSON.stringify(result).substring(0, 100)}...`);
+            log(`Processed POST '/update'`,
+                `Response=${JSON.stringify(result)}`);
         })
         .catch(err => {
             res.status(500).send('Internal Server Error');
@@ -57,51 +54,6 @@ app.post('/update', (req, res) => {
             error(`Internal Server Error POST '/update'`, err);
         });
 });
-
-
-function createChannel() {
-    return amqp.connect(RABBIT_SERVER_URL)
-        .then(conn => conn.createChannel())
-        .then(ch => {
-            log(` 1. Connected and created channel.`);
-            return ch;
-        });
-}
-
-function initProcessingFinishedQueue(ch) {
-    return ch.assertQueue(PROCESSING_FINISHED_QUEUE, {durable: false})
-        .then(q => {
-            ch.consume(q.queue, msg => {
-                const event = ProcessingFinishedEvent.decode(msg.content);
-                const eventId = event.eventId;
-                const accountId = event.accountId;
-                const metricSetupId = event.metricSetupId;
-                const targetIds = event.targetIds;
-
-                remove(eventId, accountId, metricSetupId, targetIds)
-                    .then(({replies, iterator}) => {
-                        log(` ${replies} keys were removed on ${iterator} attempt.`,
-                            `accountId = ${accountId}`,
-                            `metricSetupId = ${metricSetupId}`,
-                            `targetIds = ${targetIds}`);
-                    })
-                    .catch(err => {
-                        log(` Error while removing keys: ${err}`,
-                            `accountId = ${accountId}`,
-                            `metricSetupId = ${metricSetupId}`,
-                            `targetIds = ${targetIds}`);
-                    })
-                    .then(() => {
-                        ch.ack(msg);
-                    });
-            })
-        })
-        .then(() => {
-            log(` 1. Initialiazed ${PROCESSING_FINISHED_QUEUE}.`);
-        })
-        .then(() => ch);
-}
-
 
 function update(eventId, accountId, metricSetupId, targetIds) {
     var generateKey = makeKeyGenerator(accountId, metricSetupId);
@@ -152,6 +104,60 @@ function setEventId(client, targetIds, generateKey, eventId) {
             resolve();
         })
     });
+}
+
+createChannel()
+    .then(initProcessingFinishedQueue);
+
+function createChannel() {
+    return amqp.connect(RABBIT_SERVER_URL)
+        .then(conn => conn.createChannel())
+        .then(ch => {
+            log(` 1. Connected and created channel.`);
+            return ch;
+        });
+}
+
+function initProcessingFinishedQueue(ch) {
+    return ch.assertQueue(PROCESSING_FINISHED_QUEUE, {durable: false})
+        .then(q => {
+            ch.consume(q.queue, msg => {
+                const event = ProcessingFinishedEvent.decode(msg.content);
+                const eventId = event.eventId;
+                const accountId = event.accountId;
+                const metricSetupId = event.metricSetupId;
+                const targetIds = event.targetIds;
+
+                log(`Received ProcessingFinishedEvent`,
+                    `EventId = ${eventId}`,
+                    `AccountId = ${accountId}`,
+                    `MetricSetupId = ${metricSetupId}`,
+                    `TargetIds = ${targetIds}`);
+
+                remove(eventId, accountId, metricSetupId, targetIds)
+                    .then(({replies, iterator}) => {
+                        log(`${replies} keys were removed on ${iterator} attempt.`,
+                            `EventId = ${eventId}`,
+                            `AccountId = ${accountId}`,
+                            `MetricSetupId = ${metricSetupId}`,
+                            `TargetIds = ${targetIds}`);
+                    })
+                    .catch(err => {
+                        error(`Error while removing keys: ${err}`,
+                            `EventId = ${eventId}`,
+                            `AccountId = ${accountId}`,
+                            `MetricSetupId = ${metricSetupId}`,
+                            `TargetIds = ${targetIds}`);
+                    })
+                    .then(() => {
+                        ch.ack(msg);
+                    });
+            })
+        })
+        .then(() => {
+            log(` 2. Initialiazed ${PROCESSING_FINISHED_QUEUE}.`);
+            return ch;
+        });
 }
 
 function remove(eventId, accountId, metricSetupId, targetIds) {
