@@ -1,0 +1,19 @@
+{
+  "name": "connection_state_manager",
+  "version": "1.0.0",
+  "description": "service to manage connection interruption",
+  "main": "connection_state_manager.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "amqp",
+    "state",
+    "machine"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "amqplib": "^0.4.2"
+  }
+}
